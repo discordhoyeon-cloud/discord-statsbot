@@ -1,7 +1,7 @@
+import os
 import discord
 from discord.ext import tasks, commands
 import json
-import os
 
 intents = discord.Intents.default()
 intents.members = True
@@ -15,7 +15,7 @@ bot = commands.Bot(
 
 CONFIG_FILE = "stats_config.json"
 
-# ⚠️ 여기에 본인 디스코드 서버 ID 숫자를 정확히 넣어주세요! (예: 123456789012345678)
+# ⚠️ 여기에 본인 디스코드 서버 ID 숫자를 정확히 넣어주세요!
 MY_GUILD_ID_VALUE = 1558388838462652498
 MY_GUILD_ID = discord.Object(id=1558388838462652498) 
 
@@ -85,14 +85,12 @@ async def run_update():
                     else:
                         continue
 
-                    # 💡 '이름 : 숫자' 형식 유지
                     if ":" in chan.name:
                         prefix = chan.name.rsplit(":", 1)[0].strip()
                         new_name = f"{prefix} : {current_value}"
                     else:
                         new_name = f"{default_prefix} : {current_value}"
 
-                    # 수치가 똑같다면 API 요청을 아예 안 함
                     if chan.name == new_name:
                         continue
 
@@ -122,7 +120,6 @@ async def on_ready():
     if not update_stats.is_running():
         update_stats.start()
 
-# ⏱️ 정확히 5분마다 한 번씩만 자동 갱신
 @tasks.loop(minutes=5)
 async def update_stats():
     try:
@@ -132,8 +129,9 @@ async def update_stats():
 
 @bot.tree.command(name="카테고리생성", description="통계 채널들이 들어갈 카테고리를 생성합니다.")
 async def create_category(interaction: discord.Interaction, 카테고리이름: str):
-    if not interaction.user.guild_permissions.manage_channels:
-        await interaction.response.send_message("❌ 이 명령어를 사용할 관리자 권한이 없습니다!", ephemeral=True)
+    # 🔒 관리자 권한(Administrator) 체크로 변경
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ 이 명령어를 사용할 서버 관리자 권한이 없습니다!", ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True)
@@ -160,8 +158,9 @@ async def create_category(interaction: discord.Interaction, 카테고리이름: 
     discord.app_commands.Choice(name="봇 개수", value="bot")
 ])
 async def create_stat_channel(interaction: discord.Interaction, kind: str):
-    if not interaction.user.guild_permissions.manage_channels:
-        await interaction.response.send_message("❌ 이 명령어를 사용할 관리자 권한이 없습니다!", ephemeral=True)
+    # 🔒 관리자 권한(Administrator) 체크로 변경
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ 이 명령어를 사용할 서버 관리자 권한이 없습니다!", ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True)
@@ -201,6 +200,11 @@ async def create_stat_channel(interaction: discord.Interaction, kind: str):
 
 @bot.tree.command(name="통계갱신", description="모든 통계 채널 수치를 즉시 갱신합니다.")
 async def refresh_stats(interaction: discord.Interaction):
+    # 🔒 관리자 권한(Administrator) 체크 추가
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ 이 명령어를 사용할 서버 관리자 권한이 없습니다!", ephemeral=True)
+        return
+
     await interaction.response.defer(ephemeral=True)
     try:
         await run_update()
@@ -210,8 +214,9 @@ async def refresh_stats(interaction: discord.Interaction):
 
 @bot.tree.command(name="통계초기화", description="등록된 채널뿐만 아니라 통계 관련 채널/카테고리를 강제로 싹 다 삭제합니다.")
 async def reset_stats(interaction: discord.Interaction):
-    if not interaction.user.guild_permissions.manage_channels:
-        await interaction.response.send_message("❌ 이 명령어를 사용할 관리자 권한이 없습니다!", ephemeral=True)
+    # 🔒 관리자 권한(Administrator) 체크로 변경
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ 이 명령어를 사용할 서버 관리자 권한이 없습니다!", ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True)
