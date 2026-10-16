@@ -16,6 +16,13 @@ bot = commands.Bot(
 MY_GUILD_ID_VALUE = 1558388838462652498
 MY_GUILD_ID = discord.Object(id=1558388838462652498) 
 
+# 🔒 보내주신 정확한 채널 ID 3개만 단독 타겟팅 (다른 채널은 절대 접근 불가)
+STATS_CHANNELS = {
+    "total": 1560692773479387296, # 전체인원 채널 ID
+    "human": 1560692788683608215, # 서버인원 채널 ID
+    "voice": 1560692803971850363  # 음성인원 채널 ID
+}
+
 async def run_update():
     guild = bot.get_guild(MY_GUILD_ID_VALUE)
     if not guild:
@@ -35,43 +42,48 @@ async def run_update():
             voice_member_ids.add(m.id)
     voice_members = len(voice_member_ids)
 
-    print(f"📊 [통계 계산] 전체: {total_members} | 서버인원: {human_members} | 음성: {voice_members}")
+    target_data = {
+        "total": ("전체 인원", total_members),
+        "human": ("서버 인원", human_members),
+        "voice": ("음성 인원", voice_members)
+    }
 
     updated_count = 0
-    for chan in guild.voice_channels:
+    # 오직 위에 정의된 지정된 ID 3개만 반복문을 돌림
+    for kind, cid in STATS_CHANNELS.items():
+        chan = guild.get_channel(cid)
+        if not chan:
+            print(f"⚠️ [경고] ID [{cid}]에 해당하는 채널을 찾을 수 없습니다. (채널이 삭제되었거나 ID가 다를 수 있음)")
+            continue
+
+        default_name, current_value = target_data[kind]
         name = chan.name
-        new_name = None
 
-        if "전체" in name:
-            prefix = name.split(":")[0].strip() if ":" in name else "👥 ( 🔥 ) 전 체 인 원"
-            new_name = f"{prefix} : {total_members}"
-        elif "서버" in name or "사람" in name:
-            prefix = name.split(":")[0].strip() if ":" in name else "🔊 ( 🌷 ) 서 버 인 원"
-            new_name = f"{prefix} : {human_members}"
-        elif "음성" in name:
-            prefix = name.split(":")[0].strip() if ":" in name else "📞 ( 💎 ) 음 성 인 원"
-            new_name = f"{prefix} : {voice_members}"
+        # 콜론(:) 앞의 꾸미기 요소(이모지 등)는 그대로 유지하고 뒤의 숫자만 교체
+        if ":" in name:
+            prefix = name.split(":")[0].strip()
+            new_name = f"{prefix} : {current_value}"
+        else:
+            new_name = f"{default_name} : {current_value}"
 
-        # 💡 핵심 방어 로직: 이름이 기존과 정확히 똑같으면 API 요청을 아예 안 보냄 (리밋 방지)
-        if new_name and chan.name != new_name:
+        # 이름이 다를 때만 변경하고 API 리밋 방지를 위해 2.5초 대기
+        if chan.name != new_name:
             try:
                 await chan.edit(name=new_name)
-                print(f"✨ 채널 이름 변경 성공: '{chan.name}' -> '{new_name}'")
+                print(f"✨ 지정 통계 채널 갱신 성공: '{chan.name}' -> '{new_name}'")
                 updated_count += 1
-                
-                # 🛡️ 리밋 방지를 위해 채널 수정 사이에 2.5초 안전 대기
-                await asyncio.sleep(2.5)
+                await asyncio.sleep(2.5) # API 레이트 리밋 방지 딜레이
             except discord.HTTPException as e:
                 if e.status == 429:
-                    print(f"⚠️ [경고] 디스코드 레이트 리밋(429) 감지됨! 대기 시간을 늘려야 합니다.")
+                    print(f"⚠️ [경고] 디스코드 API 레이트 리밋(429) 감지됨!")
                 else:
                     print(f"❌ API 에러 [{chan.name}]: {e}")
             except Exception as e:
                 print(f"❌ 기타 에러 [{chan.name}]: {e}")
-        elif new_name:
+        else:
             print(f"💤 [스킵] 변경 사항 없음: '{chan.name}'")
 
-    print(f"✅ 갱신 작업 완료 (실제 변경된 채널 수: {updated_count}개)")
+    print(f"✅ 갱신 작업 완료 (실제 변경된 통계 채널 수: {updated_count}개)")
 
 @bot.event
 async def on_ready():
@@ -88,7 +100,7 @@ async def on_ready():
     if not update_stats.is_running():
         update_stats.start()
 
-# ⏱️ 너무 자주 바꾸지 않도록 5분 간격 유지 (리밋 방지에 가장 이상적)
+# ⏱️ 5분마다 자동 갱신
 @tasks.loop(minutes=5)
 async def update_stats():
     try:
@@ -96,17 +108,17 @@ async def update_stats():
     except Exception as e:
         print(f"통계 자동 갱신 에러: {e}")
 
-@bot.tree.command(name="통계갱신", description="모든 통계 채널 수치를 리밋 방지하며 안전하게 갱신합니다.")
+@bot.tree.command(name="통계갱신", description="지정된 3개의 통계 채널 수치만 안전하게 갱신합니다.")
 async def refresh_stats(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ 이 명령어를 사용할 서버 관리자 권한이 없습니다!", ephemeral=True)
         return
 
-    await interaction.response.send_message("🔄 API 리밋을 방지하며 안전하게 순차 갱신 중입니다. 잠시만 기다려주세요...", ephemeral=True)
+    await interaction.response.send_message("🔄 지정된 통계 채널들만 안전하게 순차 갱신 중입니다...", ephemeral=True)
     
     try:
         await run_update()
-        await interaction.edit_original_response(content="✅ 통계 채널들이 안전하게 갱신되었습니다! (변경 사항이 없다면 스킵되었습니다)")
+        await interaction.edit_original_response(content="✅ 지정된 3개의 통계 채널이 안전하게 갱신되었습니다!")
     except Exception as e:
         await interaction.edit_original_response(content=f"❌ 갱신 중 오류가 발생했습니다: {e}")
 
