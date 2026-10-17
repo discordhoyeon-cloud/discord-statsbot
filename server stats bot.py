@@ -13,7 +13,6 @@ bot = commands.Bot(
     chunk_guild_with_intent=True
 )
 
-# 📍 서버 및 통계 카테고리 / 채널 ID 설정
 MY_GUILD_ID_VALUE = 1558388838462652498
 MY_GUILD_ID = discord.Object(id=1558388838462652498) 
 
@@ -33,14 +32,14 @@ async def run_update():
     total_members = guild.member_count
     human_members = sum(1 for m in guild.members if not m.bot)
     
-    # 💡 통계 채널 및 통계 카테고리 내부 채널을 제외한 모든 일반 음성 채널의 유저를 정확히 집계
+    # 💡 서버 내 모든 음성 채널을 순회하며 접속 중인 유저를 중복 없이 정확하게 집계
     voice_member_ids = set()
-    for member_id, state in guild.voice_states.items():
-        if state.channel:
-            # 접속한 음성 채널이 통계 채널이거나 통계 카테고리에 포함된 채널이면 인원 집계에서 제외
-            if state.channel.id in STATS_CHANNEL_IDS or state.channel.category_id == STATS_CATEGORY_ID:
-                continue
-            voice_member_ids.add(member_id)
+    for vc in guild.voice_channels:
+        # 통계 채널이거나 통계 카테고리에 속한 채널은 집계에서 제외
+        if vc.id in STATS_CHANNEL_IDS or vc.category_id == STATS_CATEGORY_ID:
+            continue
+        for member in vc.members:
+            voice_member_ids.add(member.id)
             
     voice_members = len(voice_member_ids)
     print(f"📊 [통계 계산] 전체: {total_members} | 서버인원: {human_members} | 음성: {voice_members}명")
@@ -74,8 +73,7 @@ async def run_update():
                     await chan.edit(name=new_name)
                     print(f"✨ 채널 이름 변경 성공: '{chan.name}' -> '{new_name}'")
                     updated_count += 1
-                    # 디스코드 API 레이트 리밋(429) 방지를 위한 2.5초 대기
-                    await asyncio.sleep(2.5)
+                    await asyncio.sleep(2.5) # 리밋 방지 딜레이
                 else:
                     print(f"💤 [스킵] 이미 일치함: '{chan.name}'")
             except Exception as e:
