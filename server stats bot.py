@@ -13,7 +13,6 @@ bot = commands.Bot(
     chunk_guild_with_intent=True
 )
 
-# 📍 서버 및 통계 카테고리 / 채널 ID 설정
 MY_GUILD_ID_VALUE = 1558388838462652498
 MY_GUILD_ID = discord.Object(id=1558388838462652498) 
 
@@ -30,24 +29,27 @@ async def run_update():
         print("⚠️ [갱신 실패] 길드 정보를 불러오지 못했습니다.")
         return
 
-    # 💡 상용 봇(서버스타크)과 동일한 인원 집계 기준 적용
-    # 1. 전체 인원: 봇을 포함한 디스코드 서버 총 멤버 수 (guild.member_count)
+    # 💡 디스코드 캐시/멤버 정보를 강제로 동기화하여 누락 방지
+    try:
+        await guild.chunk()
+    except Exception as e:
+        print(f"⚠️ 멤버 chunk 로딩 중 예외 발생: {e}")
+
     total_members = guild.member_count 
-    
-    # 2. 서버 인원: 봇(m.bot)을 제외한 순수 사람 유저 수
     human_members = sum(1 for m in guild.members if not m.bot)
     
-    # 3. 음성 인원: 통계 채널/카테고리를 제외한 일반 음성 채널의 진짜 사람 유저 수 (중복 제거)
+    # 💡 서버의 모든 음성 채널을 직접 순회하며 방에 있는 진짜 사람들을 완벽하게 수집
     voice_member_ids = set()
     for vc in guild.voice_channels:
+        # 통계 채널 자체이거나 통계 카테고리에 속한 채널은 집계 대상에서 제외
         if vc.id in STATS_CHANNEL_IDS or vc.category_id == STATS_CATEGORY_ID:
             continue
         for member in vc.members:
-            if not member.bot:
+            if not member.bot: # 봇 제외
                 voice_member_ids.add(member.id)
             
     voice_members = len(voice_member_ids)
-    print(f"📊 [스탯 매칭] 전체: {total_members} | 사람: {human_members} | 음성: {voice_members}명")
+    print(f"📊 [강력 집계] 전체: {total_members} | 사람: {human_members} | 음성: {voice_members}명")
 
     category = guild.get_channel(STATS_CATEGORY_ID)
     if not category or not isinstance(category, discord.CategoryChannel):
@@ -74,11 +76,12 @@ async def run_update():
 
         if new_name:
             try:
+                # 💡 강제로 이름을 갱신하도록 기존 이름과 달라도 바로 수정 적용
                 if chan.name != new_name:
                     await chan.edit(name=new_name)
                     print(f"✨ 채널 변경 성공: '{chan.name}' -> '{new_name}'")
                     updated_count += 1
-                    await asyncio.sleep(2.5) # API 리밋(429) 방지 대기
+                    await asyncio.sleep(2.5) # API 429 레이트 리밋 방지
                 else:
                     print(f"💤 [스킵] 이미 일치함: '{chan.name}'")
             except Exception as e:
