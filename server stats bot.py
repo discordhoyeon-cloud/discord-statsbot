@@ -16,7 +16,7 @@ bot = commands.Bot(
 MY_GUILD_ID_VALUE = 1558388838462652498
 MY_GUILD_ID = discord.Object(id=1558388838462652498) 
 
-# 🔒 통계 전용 카테고리 ID (이 카테고리 외부의 채널은 봇이 아예 볼 수도, 접근할 수도 없습니다)
+# 🔒 통계 전용 카테고리 ID (이 카테고리 외부는 절대 접근 불가)
 STATS_CATEGORY_ID = 1560692772426612916
 
 async def run_update():
@@ -27,10 +27,9 @@ async def run_update():
     total_members = guild.member_count
     human_members = sum(1 for m in guild.members if not m.bot)
     
-    # 음성 인원 계산 (통계 카테고리 외부 채널인 '전체회의실' 등은 철저히 배제)
+    # 음성 인원 집계 (통계 카테고리 외부에 있는 일반 채널들만 대상으로 계산)
     voice_member_ids = set()
     for vc in guild.voice_channels:
-        # 통계 카테고리 안에 있는 채널들은 인원 집계에서 제외 (중복 방지)
         if vc.category_id == STATS_CATEGORY_ID:
             continue
         for member in vc.members:
@@ -42,32 +41,34 @@ async def run_update():
             
     voice_members = len(voice_member_ids)
 
-    # 카테고리 가져오기
     category = guild.get_channel(STATS_CATEGORY_ID)
     if not category or not isinstance(category, discord.CategoryChannel):
         print("⚠️ 통계 카테고리를 찾을 수 없습니다.")
         return
 
-    # 🔒 오직 통계 카테고리 안에 속한 음성 채널들만 순회
+    # 🔒 오직 통계 카테고리 내부에 있는 채널들만 검사
     for chan in category.voice_channels:
         name = chan.name
         new_name = None
 
-        if "전체" in name:
-            prefix = name.split(":")[0].strip() if ":" in name else "전체 인원"
+        # 띄어쓰기(공백)를 모두 무시하고 키워드 검사
+        clean_name = name.replace(" ", "")
+
+        if "전체" in clean_name:
+            prefix = name.split(":")[0].strip() if ":" in name else "👥 전 체 인 원"
             new_name = f"{prefix} : {total_members}"
-        elif "서버" in name or "사람" in name:
-            prefix = name.split(":")[0].strip() if ":" in name else "서버 인원"
+        elif "서버" in clean_name or "사람" in clean_name:
+            prefix = name.split(":")[0].strip() if ":" in name else "👤 서 버 인 원"
             new_name = f"{prefix} : {human_members}"
-        elif "음성" in name:
-            prefix = name.split(":")[0].strip() if ":" in name else "음성 인원"
+        elif "음성" in clean_name:
+            prefix = name.split(":")[0].strip() if ":" in name else "🔊 음 성 인 원"
             new_name = f"{prefix} : {voice_members}"
 
         if new_name and chan.name != new_name:
             try:
                 await chan.edit(name=new_name)
                 print(f"✨ 통계 채널 갱신 완료: '{chan.name}' -> '{new_name}'")
-                await asyncio.sleep(2.5)
+                await asyncio.sleep(2.5) # API 리밋 방지 대기
             except Exception as e:
                 print(f"❌ 채널 갱신 에러: {e}")
 
