@@ -32,10 +32,9 @@ async def run_update():
     total_members = guild.member_count
     human_members = sum(1 for m in guild.members if not m.bot)
     
-    # 💡 서버 내 모든 음성 채널을 순회하며 접속 중인 유저를 중복 없이 정확하게 집계
+    # 💡 서버 내 모든 일반 음성 채널을 순회하며 접속 중인 유저를 중복 없이 집계
     voice_member_ids = set()
     for vc in guild.voice_channels:
-        # 통계 채널이거나 통계 카테고리에 속한 채널은 집계에서 제외
         if vc.id in STATS_CHANNEL_IDS or vc.category_id == STATS_CATEGORY_ID:
             continue
         for member in vc.members:
@@ -73,7 +72,7 @@ async def run_update():
                     await chan.edit(name=new_name)
                     print(f"✨ 채널 이름 변경 성공: '{chan.name}' -> '{new_name}'")
                     updated_count += 1
-                    await asyncio.sleep(2.5) # 리밋 방지 딜레이
+                    await asyncio.sleep(2.5)
                 else:
                     print(f"💤 [스킵] 이미 일치함: '{chan.name}'")
             except Exception as e:
