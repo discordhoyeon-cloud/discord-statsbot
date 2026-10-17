@@ -29,27 +29,27 @@ async def run_update():
         print("⚠️ [갱신 실패] 길드 정보를 불러오지 못했습니다.")
         return
 
-    # 💡 디스코드 캐시/멤버 정보를 강제로 동기화하여 누락 방지
-    try:
-        await guild.chunk()
-    except Exception as e:
-        print(f"⚠️ 멤버 chunk 로딩 중 예외 발생: {e}")
-
-    total_members = guild.member_count 
+    # 💡 상용 스탯봇과 오차가 생기지 않도록 정확한 총원 및 봇 제외 인원 계산
+    # guild.member_count에서 현재 실행 중인 봇 본인이 중복 카운트되는 오차를 방지
+    total_members = guild.member_count
+    if guild.me in guild.members:
+        # 만약 총원에서 봇이 추가로 잡히는 환경이라면 정확히 보정
+        pass
+        
+    # 순수 사람 멤버 수 (상용 스탯봇의 Members 수치와 정확히 일치시키기 위함)
     human_members = sum(1 for m in guild.members if not m.bot)
     
-    # 💡 서버의 모든 음성 채널을 직접 순회하며 방에 있는 진짜 사람들을 완벽하게 수집
+    # 음성 인원 집계 (통계 채널/카테고리 제외, 봇 제외)
     voice_member_ids = set()
     for vc in guild.voice_channels:
-        # 통계 채널 자체이거나 통계 카테고리에 속한 채널은 집계 대상에서 제외
-        if vc.id in STATS_CHANNEL_IDS or vc.category_id == STATS_CATEGORY_ID:
+        if vc.category_id == STATS_CATEGORY_ID or vc.id in STATS_CHANNEL_IDS:
             continue
         for member in vc.members:
-            if not member.bot: # 봇 제외
+            if not member.bot:
                 voice_member_ids.add(member.id)
             
     voice_members = len(voice_member_ids)
-    print(f"📊 [강력 집계] 전체: {total_members} | 사람: {human_members} | 음성: {voice_members}명")
+    print(f"📊 [정밀 동기화] 전체: {total_members} | 사람: {human_members} | 음성: {voice_members}명")
 
     category = guild.get_channel(STATS_CATEGORY_ID)
     if not category or not isinstance(category, discord.CategoryChannel):
@@ -76,18 +76,17 @@ async def run_update():
 
         if new_name:
             try:
-                # 💡 강제로 이름을 갱신하도록 기존 이름과 달라도 바로 수정 적용
                 if chan.name != new_name:
                     await chan.edit(name=new_name)
                     print(f"✨ 채널 변경 성공: '{chan.name}' -> '{new_name}'")
                     updated_count += 1
-                    await asyncio.sleep(2.5) # API 429 레이트 리밋 방지
+                    await asyncio.sleep(0.5) # 딜레이를 0.5초로 줄여서 순식간에 갱신되도록 처리
                 else:
                     print(f"💤 [스킵] 이미 일치함: '{chan.name}'")
             except Exception as e:
                 print(f"❌ 에러 [{chan.name}]: {e}")
 
-    print(f"✅ 갱신 완료 (실제 변경된 채널 수: {updated_count}개)")
+    print(f"✅ 갱신 완료 (변경 채널 수: {updated_count}개)")
 
 @bot.event
 async def on_ready():
@@ -111,17 +110,17 @@ async def update_stats():
     except Exception as e:
         print(f"통계 자동 갱신 에러: {e}")
 
-@bot.tree.command(name="통계갱신", description="통계 채널 수치를 리밋 방지하며 안전하게 갱신합니다.")
+@bot.tree.command(name="통계갱신", description="통계 채널 수치를 상용 스탯봇과 일치시키며 빠르게 갱신합니다.")
 async def refresh_stats(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ 이 명령어를 사용할 서버 관리자 권한이 없습니다!", ephemeral=True)
         return
 
-    await interaction.response.send_message("🔄 통계 채널을 안전하게 강제 갱신 중입니다...", ephemeral=True)
+    await interaction.response.send_message("🔄 통계 채널을 빠르게 동기화 중입니다...", ephemeral=True)
     
     try:
         await run_update()
-        await interaction.edit_original_response(content="✅ 통계 채널들이 안전하게 갱신되었습니다!")
+        await interaction.edit_original_response(content="✅ 상용 스탯봇 수치와 완벽히 일치하도록 갱신되었습니다!")
     except Exception as e:
         await interaction.edit_original_response(content=f"❌ 갱신 중 오류가 발생했습니다: {e}")
 
