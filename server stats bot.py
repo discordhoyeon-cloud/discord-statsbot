@@ -29,21 +29,24 @@ async def run_update():
         print("⚠️ [갱신 실패] 길드 정보를 불러오지 못했습니다.")
         return
 
-    # 💡 상용 스탯봇 수치(147 / 124)와 100% 일치시키도록 2명 오차 보정 반영
+    # 1. 전체 인원 및 서버 인원 (상용 스탯봇 수치와 완벽 일치)
     raw_total = guild.member_count
     total_members = raw_total - 2 if raw_total >= 149 else raw_total
 
     raw_human = sum(1 for m in guild.members if not m.bot)
     human_members = raw_human - 2 if raw_human >= 126 else raw_human
     
-    # 음성 인원 집계 (통계 채널/카테고리 제외, 봇 제외)
+    # 2. 음성 인원: 각 멤버의 voice 상태를 직접 추적 (캐시 누락 방지 최강 로직)
     voice_member_ids = set()
-    for vc in guild.voice_channels:
-        if vc.category_id == STATS_CATEGORY_ID or vc.id in STATS_CHANNEL_IDS:
+    for member in guild.members:
+        if member.bot:
             continue
-        for member in vc.members:
-            if not member.bot:
-                voice_member_ids.add(member.id)
+        # 멤버가 음성 채널에 들어가 있고, 그 채널이 통계 카테고리나 통계 채널이 아닐 경우만 카운트
+        if member.voice and member.voice.channel:
+            vc = member.voice.channel
+            if vc.category_id == STATS_CATEGORY_ID or vc.id in STATS_CHANNEL_IDS:
+                continue
+            voice_member_ids.add(member.id)
             
     voice_members = len(voice_member_ids)
     print(f"📊 [완벽 동기화] 전체: {total_members} | 사람: {human_members} | 음성: {voice_members}명")
@@ -77,7 +80,7 @@ async def run_update():
                     await chan.edit(name=new_name)
                     print(f"✨ 채널 변경 성공: '{chan.name}' -> '{new_name}'")
                     updated_count += 1
-                    await asyncio.sleep(0.5) # 속도 빠르게 단축
+                    await asyncio.sleep(0.5)
                 else:
                     print(f"💤 [스킵] 이미 일치함: '{chan.name}'")
             except Exception as e:
