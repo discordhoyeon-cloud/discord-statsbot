@@ -13,6 +13,7 @@ bot = commands.Bot(
     chunk_guild_with_intent=True
 )
 
+# 📍 서버 및 통계 카테고리 / 채널 ID 설정
 MY_GUILD_ID_VALUE = 1558388838462652498
 MY_GUILD_ID = discord.Object(id=1558388838462652498) 
 
@@ -29,19 +30,24 @@ async def run_update():
         print("⚠️ [갱신 실패] 길드 정보를 불러오지 못했습니다.")
         return
 
-    total_members = guild.member_count
+    # 💡 상용 봇(서버스타크)과 동일한 인원 집계 기준 적용
+    # 1. 전체 인원: 봇을 포함한 디스코드 서버 총 멤버 수 (guild.member_count)
+    total_members = guild.member_count 
+    
+    # 2. 서버 인원: 봇(m.bot)을 제외한 순수 사람 유저 수
     human_members = sum(1 for m in guild.members if not m.bot)
     
-    # 💡 서버 내 모든 일반 음성 채널을 순회하며 접속 중인 유저를 중복 없이 집계
+    # 3. 음성 인원: 통계 채널/카테고리를 제외한 일반 음성 채널의 진짜 사람 유저 수 (중복 제거)
     voice_member_ids = set()
     for vc in guild.voice_channels:
         if vc.id in STATS_CHANNEL_IDS or vc.category_id == STATS_CATEGORY_ID:
             continue
         for member in vc.members:
-            voice_member_ids.add(member.id)
+            if not member.bot:
+                voice_member_ids.add(member.id)
             
     voice_members = len(voice_member_ids)
-    print(f"📊 [통계 계산] 전체: {total_members} | 서버인원: {human_members} | 음성: {voice_members}명")
+    print(f"📊 [스탯 매칭] 전체: {total_members} | 사람: {human_members} | 음성: {voice_members}명")
 
     category = guild.get_channel(STATS_CATEGORY_ID)
     if not category or not isinstance(category, discord.CategoryChannel):
@@ -70,15 +76,15 @@ async def run_update():
             try:
                 if chan.name != new_name:
                     await chan.edit(name=new_name)
-                    print(f"✨ 채널 이름 변경 성공: '{chan.name}' -> '{new_name}'")
+                    print(f"✨ 채널 변경 성공: '{chan.name}' -> '{new_name}'")
                     updated_count += 1
-                    await asyncio.sleep(2.5)
+                    await asyncio.sleep(2.5) # API 리밋(429) 방지 대기
                 else:
                     print(f"💤 [스킵] 이미 일치함: '{chan.name}'")
             except Exception as e:
                 print(f"❌ 에러 [{chan.name}]: {e}")
 
-    print(f"✅ 갱신 완료 (변경 채널 수: {updated_count}개)")
+    print(f"✅ 갱신 완료 (실제 변경된 채널 수: {updated_count}개)")
 
 @bot.event
 async def on_ready():
